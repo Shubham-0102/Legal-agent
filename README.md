@@ -1,52 +1,270 @@
 # Legal Agent
 
-## Run
-Copy `.env.example` to `.env`, set a long random `JWT_SECRET`, and add a Gemini API key to `GEMINI_API_KEY`. Create a key in [Google AI Studio](https://aistudio.google.com/apikey). Do not commit `.env` or share the key.
+Legal Agent is an AI-powered legal research and document analysis web application designed to help users research legal information, ask questions, and interact with their legal documents through an AI-powered chatbot.
 
-```sh
-docker compose up --build
+The system combines Retrieval-Augmented Generation (RAG), vector search, document processing, and live web search to provide contextual responses for legal research.
+
+## Live Demo
+
+[Legal Agent](https://legal-agent-3unltysa4-shubham-yadavs-projects-559bea27.vercel.app/)
+
+## GitHub Repository
+
+[GitHub Repository](https://github.com/Shubham-0102/Legal-agent)
+
+## Features
+
+* AI-powered legal question answering
+* Retrieval-Augmented Generation (RAG)
+* Legal document upload and analysis
+* Ask questions about uploaded documents
+* Vector search using Qdrant Cloud
+* Live search for current information
+* English and Nepali language support
+* User registration and login
+* JWT-based authentication
+* Conversation history
+* User profile management
+* Legal case management
+* Document management
+* Streaming AI responses
+* PostgreSQL database for application data
+
+## How It Works
+
+The application follows this general workflow:
+
+```text
+User
+  |
+  v
+Frontend
+  |
+  v
+FastAPI Backend
+  |
+  +--------------------+
+  |                    |
+  v                    v
+PostgreSQL          Qdrant Cloud
+  |                    |
+  |                    v
+  |                Vector Search
+  |                    |
+  +---------+----------+
+            |
+            v
+       AI Processing
+            |
+            +------------------+
+            |                  |
+            v                  v
+        Local RAG         Live Search
+            |                  |
+            +--------+---------+
+                     |
+                     v
+              Generated Answer
+                     |
+                     v
+                  User
 ```
 
-The frontend is at http://localhost:5173 and the backend API docs are at http://localhost:8000/docs. The API root (`http://localhost:8000/`) intentionally has no homepage and returns 404.
+## RAG Pipeline
 
-The default Gemini configuration uses `gemini-3.5-flash` for chat and `gemini-embedding-001` for retrieval embeddings. Gemini free-tier availability and request limits depend on account, region, and current Google AI Studio terms. To use OpenAI instead, set `AI_PROVIDER=openai`, `OPENAI_API_KEY`, `CHAT_MODEL=gpt-4o`, and `EMBED_MODEL=text-embedding-3-small`.
+For uploaded legal documents, the system processes the documents and stores their vector representations in Qdrant.
 
-For frontend-only development on the host, use `npm --prefix frontend run dev -- --host`; there is no root-level `package.json`.
+When a user asks a question:
 
-## Research flow
-Register and log in, then ask general legal research questions without uploading a document. Include the jurisdiction and relevant date; the assistant gives preliminary research guidance and flags that current primary authority must be checked. Upload a PDF or TXT when you want an answer grounded in a specific record. Every Qdrant query is filtered by `user_id` and, when selected, `case_id`.
+1. The question is received by the FastAPI backend.
+2. Relevant document information is searched using vector similarity.
+3. Retrieved information is added as context.
+4. The AI model generates a response using the retrieved context.
+5. The response is streamed back to the frontend.
 
-## Frontend
-`docker compose up --build` also starts the React app (first start runs `npm install`).
+This allows users to ask questions based on their uploaded legal documents instead of relying only on general model knowledge.
 
+## Live Search
 
-## Production deployment on a VPS
+Legal information can change over time. The application therefore includes live search functionality for questions that require current information.
 
-The regular `docker-compose.yml` is for local development: it runs Vite's dev server and publishes the frontend and API directly. For a public deployment, use the production stack below. It builds static frontend assets and lets Caddy serve the frontend and proxy `/api` over HTTPS on one domain. The database, Qdrant, API, and uploaded files stay on the private Docker network or persistent volumes.
+The live-search functionality can be used when information is not available in the local document knowledge base or when current information is required.
 
-1. Provision a Linux VPS with Docker Engine and the Docker Compose plugin. Point your domain's DNS `A` record to the VPS IPv4 address. Open inbound TCP ports 80 and 443 (and UDP 443 if you want HTTP/3); restrict SSH to your own IP where possible. Do not open ports 5173, 8000, 5432, or 6333.
-2. Clone this repository onto the VPS and enter its directory.
-3. Create the production environment file and edit it:
+## Technology Stack
 
-   ```sh
-   cp .env.production.example .env.production
-   ```
+### Frontend
 
-   Set `APP_DOMAIN` and `CORS_ORIGINS` to your real domain. Set `POSTGRES_PASSWORD` and `JWT_SECRET` to separate random values, for example the output of `openssl rand -hex 32`. Copy the exact `POSTGRES_PASSWORD` value into the password part of `DATABASE_URL`. Add the API key for your selected provider. Keep `.env.production` private and never commit it.
-4. Start the production stack:
+* React
+* TypeScript
+* Vite
+* CSS
 
-   ```sh
-   chmod 600 .env.production
-   docker compose --env-file .env.production -f docker-compose.production.yml up -d --build
-   ```
+### Backend
 
-5. Check startup logs if needed, then open `https://your-domain`. Caddy obtains and renews HTTPS certificates automatically once DNS points to the server and ports 80/443 reach it.
+* Python
+* FastAPI
+* SQLAlchemy
+* PostgreSQL
+* JWT Authentication
 
-Update after pulling new code with the same `docker compose ... up -d --build` command. The database, Qdrant index, uploads, and Caddy certificates are stored in Docker volumes; configure regular off-server backups for all user data before relying on the deployment. The app currently allows account registration, so anyone who can reach the site can create an account.
+### AI and RAG
 
-This is a single-server deployment path, not a high-availability setup. The API currently creates missing database tables on startup; it does not run schema migrations. Plan and test migrations before deploying schema changes to an installation that contains important data.
+* Gemini API
+* Qdrant Cloud
+* Retrieval-Augmented Generation
+* PDF processing
 
+### Deployment
 
-## Current information in chat
+* Vercel — Frontend
+* Render — Backend
+* PostgreSQL — Database
+* Qdrant Cloud — Vector Database
 
-For detected current-fact questions (such as current office holders, recent developments, or current law), the Gemini configuration uses Gemini Google Search grounding and displays the returned source links in the answer. To protect document privacy, this path sends only the latest question to Gemini; it skips document retrieval and does not send prior chat messages or uploaded-document passages. If the search request fails or returns no source links, the app reports that it could not verify the current answer instead of falling back to the model's remembered answer. This live-search path requires `AI_PROVIDER=gemini`; the OpenAI chat-completions path does not currently provide live search. Google Search grounding has separate quota and billing rules; check the current Gemini pricing and availability for your account.
+## Project Structure
+
+```text
+legal-agent/
+├── backend/
+│   ├── app/
+│   │   ├── core.py
+│   │   ├── db.py
+│   │   ├── main.py
+│   │   ├── news.py
+│   │   └── rag.py
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── frontend/
+│   ├── src/
+│   │   ├── api.ts
+│   │   ├── App.tsx
+│   │   ├── Auth.tsx
+│   │   ├── Profile.tsx
+│   │   ├── main.tsx
+│   │   └── styles.css
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── data/
+├── docker-compose.yml
+├── docker-compose.production.yml
+├── Caddyfile
+├── .env.example
+├── .env.production.example
+└── README.md
+```
+
+## Local Development
+
+### Clone the repository
+
+```bash
+git clone https://github.com/Shubham-0102/Legal-agent.git
+cd Legal-agent
+```
+
+### Backend Setup
+
+Create and activate a virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r backend/requirements.txt
+```
+
+Configure the environment variables in `.env`.
+
+The application requires configuration for:
+
+```text
+DATABASE_URL
+JWT_SECRET
+GEMINI_API_KEY
+QDRANT_URL
+QDRANT_API_KEY
+CORS_ORIGINS
+```
+
+Start the backend:
+
+```bash
+uvicorn backend.app.main:app --reload
+```
+
+### Frontend Setup
+
+Open another terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will normally be available at:
+
+```text
+http://localhost:5173
+```
+
+## Deployment
+
+The current deployment uses:
+
+```text
+Frontend  → Vercel
+Backend   → Render
+Database  → PostgreSQL
+Vectors   → Qdrant Cloud
+AI        → Gemini API
+```
+
+Environment variables and API keys are stored in the deployment platforms rather than committed to the GitHub repository.
+
+## Security
+
+Sensitive credentials are not stored in the repository.
+
+The project uses environment variables for:
+
+* Database credentials
+* JWT secret
+* Gemini API key
+* Qdrant API key
+* CORS configuration
+
+The `.env` file is excluded through `.gitignore`.
+
+## Project Purpose
+
+This project was developed as an academic project to explore the practical implementation of:
+
+* Generative AI
+* Retrieval-Augmented Generation
+* Vector databases
+* Legal document processing
+* AI-powered search
+* Full-stack web development
+* API development
+* Cloud deployment
+
+## Limitations
+
+Legal Agent is an academic project and should not be treated as a replacement for a qualified legal professional.
+
+AI-generated responses may contain errors or incomplete information. Legal information should be verified against official legal sources and applicable laws before being relied upon.
+
+## Author
+
+**Shubham Yadav**
+
+Computer Science student focused on AI, Data Engineering, and AI-powered applications.
