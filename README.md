@@ -1,264 +1,52 @@
 # Legal Agent
 
-Legal Agent is a full-stack AI legal research assistant that helps users research legal questions, upload and search their own documents, organize research into cases, save conversations, and view legal news updates.
+## Run
+Copy `.env.example` to `.env`, set a long random `JWT_SECRET`, and add a Gemini API key to `GEMINI_API_KEY`. Create a key in [Google AI Studio](https://aistudio.google.com/apikey). Do not commit `.env` or share the key.
 
-It uses Retrieval-Augmented Generation (RAG) to retrieve relevant content from uploaded documents and provide context-aware AI responses.
-
-> Legal Agent is an AI research assistant and is not a substitute for professional legal advice or verification of current primary legal sources.
-
-## Live Demo
-
-https://legal-agent-3unltysa4-shubham-yadavs-projects-559bea27.vercel.app/
-
-## Features
-
-* User registration and login
-* JWT-based authentication
-* AI-powered legal question answering
-* RAG-based document search
-* PDF and TXT document uploads
-* Semantic search using Qdrant
-* Case management
-* Conversation history
-* Streaming AI responses
-* Document source references
-* Legal news feed
-* User profile management
-
-## Tech Stack
-
-| Component         | Technology              |
-| ----------------- | ----------------------- |
-| Frontend          | React, TypeScript, Vite |
-| Backend           | Python, FastAPI         |
-| Database          | PostgreSQL              |
-| Vector Database   | Qdrant                  |
-| AI                | Gemini / OpenAI         |
-| Authentication    | JWT                     |
-| Password Hashing  | bcrypt                  |
-| Containerization  | Docker                  |
-| Production Server | Caddy                   |
-
-## How It Works
-
-The main application flow is:
-
-```text
-React Frontend
-      |
-      v
-FastAPI Backend
-      |
-      +-------------------+
-      |                   |
-      v                   v
- PostgreSQL             Qdrant
-      |                   |
-      |             Document Search
-      |                   |
-      +---------+---------+
-                |
-                v
-           AI Model
-                |
-                v
-        Streaming Response
-```
-
-## RAG Pipeline
-
-When a user uploads a document:
-
-```text
-PDF / TXT
-   |
-   v
-Text Extraction
-   |
-   v
-Text Chunking
-   |
-   v
-Embeddings
-   |
-   v
-Qdrant
-```
-
-When a user asks a question:
-
-```text
-User Question
-      |
-      v
-Qdrant Search
-      |
-      v
-Relevant Document Chunks
-      |
-      v
-AI Model
-      |
-      v
-Generated Answer
-```
-
-The retrieved documents are filtered using the user's information and, when applicable, the selected case.
-
-## Document Storage
-
-The application uses three types of storage:
-
-### PostgreSQL
-
-Stores:
-
-* Users
-* Cases
-* Document metadata
-* Conversations
-* Messages
-* Profiles
-
-### Qdrant
-
-Stores:
-
-* Document embeddings
-* Document chunks
-* Document metadata
-* Search information
-
-### File Storage
-
-Stores the original uploaded PDF and TXT files.
-
-A complete backup therefore requires PostgreSQL, Qdrant, and the uploaded files.
-
-## Legal News
-
-The application includes a separate legal-news section.
-
-It collects information from selected RSS feeds and Nepalese official websites.
-
-The news feed is separate from the AI chat. News articles are not automatically used as context when answering chat questions.
-
-The news system depends on the availability and structure of external websites, so it cannot guarantee that every legal update is captured.
-
-## Project Structure
-
-```text
-legal-agent/
-|
-├── backend/
-│   └── app/
-│       ├── main.py
-│       ├── core.py
-│       ├── db.py
-│       ├── rag.py
-│       ├── news.py
-│       └── ...
-|
-├── frontend/
-│   └── src/
-│       ├── main.tsx
-│       ├── App.tsx
-│       ├── Auth.tsx
-│       ├── Profile.tsx
-│       ├── api.ts
-│       └── ...
-|
-├── data/
-├── docker-compose.yml
-├── docker-compose.production.yml
-├── Caddyfile
-├── .env.example
-├── .env.production.example
-└── README.md
-```
-
-## Running Locally
-
-Clone the repository:
-
-```bash
-git clone <your-repository-url>
-cd legal-agent
-```
-
-Create the environment file:
-
-```bash
-cp .env.example .env
-```
-
-Configure the required environment variables.
-
-Start the development environment:
-
-```bash
+```sh
 docker compose up --build
 ```
 
-The development stack includes the frontend, FastAPI backend, PostgreSQL, and Qdrant.
+The frontend is at http://localhost:5173 and the backend API docs are at http://localhost:8000/docs. The API root (`http://localhost:8000/`) intentionally has no homepage and returns 404.
 
-## Deployment
+The default Gemini configuration uses `gemini-3.5-flash` for chat and `gemini-embedding-001` for retrieval embeddings. Gemini free-tier availability and request limits depend on account, region, and current Google AI Studio terms. To use OpenAI instead, set `AI_PROVIDER=openai`, `OPENAI_API_KEY`, `CHAT_MODEL=gpt-4o`, and `EMBED_MODEL=text-embedding-3-small`.
 
-The project includes production configuration using Docker Compose and Caddy.
+For frontend-only development on the host, use `npm --prefix frontend run dev -- --host`; there is no root-level `package.json`.
 
-Production files include:
+## Research flow
+Register and log in, then ask general legal research questions without uploading a document. Include the jurisdiction and relevant date; the assistant gives preliminary research guidance and flags that current primary authority must be checked. Upload a PDF or TXT when you want an answer grounded in a specific record. Every Qdrant query is filtered by `user_id` and, when selected, `case_id`.
 
-```text
-docker-compose.production.yml
-Caddyfile
-frontend/Dockerfile
-.env.production.example
-```
+## Frontend
+`docker compose up --build` also starts the React app (first start runs `npm install`).
 
-The production architecture is designed to serve the frontend and backend through the same domain, with `/api` routed to the FastAPI backend.
 
-## Current Limitations
+## Production deployment on a VPS
 
-* Only PDF and TXT files are supported.
-* Scanned PDFs are not supported because OCR is not implemented.
-* The default document upload limit is 25 MB.
-* Document retrieval may miss relevant passages.
-* AI-generated answers may contain errors.
-* The news feed cannot guarantee complete coverage of all legal updates.
-* News content is not automatically used by the chat system.
-* There is currently no email verification.
-* There is currently no password reset system.
-* Two-factor authentication is not implemented.
-* Database migrations are not currently implemented.
-* Important legal information should be verified against authoritative sources.
+The regular `docker-compose.yml` is for local development: it runs Vite's dev server and publishes the frontend and API directly. For a public deployment, use the production stack below. It builds static frontend assets and lets Caddy serve the frontend and proxy `/api` over HTTPS on one domain. The database, Qdrant, API, and uploaded files stay on the private Docker network or persistent volumes.
 
-## Future Improvements
+1. Provision a Linux VPS with Docker Engine and the Docker Compose plugin. Point your domain's DNS `A` record to the VPS IPv4 address. Open inbound TCP ports 80 and 443 (and UDP 443 if you want HTTP/3); restrict SSH to your own IP where possible. Do not open ports 5173, 8000, 5432, or 6333.
+2. Clone this repository onto the VPS and enter its directory.
+3. Create the production environment file and edit it:
 
-Planned improvements include:
+   ```sh
+   cp .env.production.example .env.production
+   ```
 
-* OCR for scanned documents
-* Hybrid keyword and vector search
-* Reranking for better retrieval
-* Better document citations
-* Integration with more official legal sources
-* Legal document comparison
-* Law and amendment tracking
-* Case-specific notifications
-* Email notifications
-* Two-factor authentication
-* Role-based access control
-* Automated backups
-* CI/CD
-* Improved testing and monitoring
+   Set `APP_DOMAIN` and `CORS_ORIGINS` to your real domain. Set `POSTGRES_PASSWORD` and `JWT_SECRET` to separate random values, for example the output of `openssl rand -hex 32`. Copy the exact `POSTGRES_PASSWORD` value into the password part of `DATABASE_URL`. Add the API key for your selected provider. Keep `.env.production` private and never commit it.
+4. Start the production stack:
 
-## Disclaimer
+   ```sh
+   chmod 600 .env.production
+   docker compose --env-file .env.production -f docker-compose.production.yml up -d --build
+   ```
 
-Legal Agent is intended for research and informational purposes.
+5. Check startup logs if needed, then open `https://your-domain`. Caddy obtains and renews HTTPS certificates automatically once DNS points to the server and ports 80/443 reach it.
 
-It does not provide legal representation or constitute legal advice. Users should verify important information against current and authoritative legal sources.
+Update after pulling new code with the same `docker compose ... up -d --build` command. The database, Qdrant index, uploads, and Caddy certificates are stored in Docker volumes; configure regular off-server backups for all user data before relying on the deployment. The app currently allows account registration, so anyone who can reach the site can create an account.
 
-## Author
+This is a single-server deployment path, not a high-availability setup. The API currently creates missing database tables on startup; it does not run schema migrations. Plan and test migrations before deploying schema changes to an installation that contains important data.
 
-Shubham Yadav
 
-Computer Science | AI & Data Engineering
+## Current information in chat
+
+For detected current-fact questions (such as current office holders, recent developments, or current law), the Gemini configuration uses Gemini Google Search grounding and displays the returned source links in the answer. To protect document privacy, this path sends only the latest question to Gemini; it skips document retrieval and does not send prior chat messages or uploaded-document passages. If the search request fails or returns no source links, the app reports that it could not verify the current answer instead of falling back to the model's remembered answer. This live-search path requires `AI_PROVIDER=gemini`; the OpenAI chat-completions path does not currently provide live search. Google Search grounding has separate quota and billing rules; check the current Gemini pricing and availability for your account.

@@ -2,7 +2,7 @@ export const API = "https://legal-agent-bdlk.onrender.com/api";
 let token = localStorage.getItem("token") || "";
 export const setToken = (t: string) => { token = t; t ? localStorage.setItem("token", t) : localStorage.removeItem("token"); };
 export const hasToken = () => !!token;
-export type Source = { n: number; title: string; section?: string; page: number; source_type: string };
+export type Source = { n: number; title: string; section?: string; page?: number; source_type: string; url?: string; score?: number };
 export type Msg = { role: string; content: string; sources?: Source[] };
 export type NewsItem = { id: string; title: string; link: string; summary: string; published: string; published_label?: string; source: string; region: string };
 export type NewsResponse = { items: NewsItem[]; updated_at: string; errors: string[] };

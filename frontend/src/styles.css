@@ -365,3 +365,6 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+.source-row a { color: var(--ink-soft); text-decoration: none; text-underline-offset: 3px; }
+.source-row a:hover { color: var(--forest); text-decoration: underline; }

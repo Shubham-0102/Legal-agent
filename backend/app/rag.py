@@ -1,3 +1,4 @@
+import json
 import re, uuid
 import httpx
 from openai import AsyncOpenAI
@@ -27,6 +28,19 @@ def ai_client() -> AsyncOpenAI:
     return _oa
 
 HEAD = re.compile(r"^\s*((?:Section|Article|Clause|Chapter|दफा|धारा)\s*\d+[\w.()-]*|\d+\.\s+[A-Z])", re.M)
+CURRENT_FACT_TERMS = re.compile(
+    r"\b(current(?:ly)?|today|right now|latest|recent|as of|this week|this month|this year|"
+    r"prime minister|\bpm\b|president|chief justice|chief minister|cabinet|incumbent|office holder|"
+    r"officeholder|governor|mayor|minister|head of state|head of government|election results?|"
+    r"current law|new law|recent amendment)\b|"
+    r"प्रधानमन्त्री|राष्ट्रपति|प्रधानन्यायाधीश|अहिले|हालसालै|हालको|ताजा",
+    re.IGNORECASE,
+)
+
+
+def should_search_current_question(question: str) -> bool:
+    """Current-fact lookups use live web grounding only for Gemini."""
+    return settings.ai_provider.strip().lower() == "gemini" and bool(CURRENT_FACT_TERMS.search(question))
 
 def chunk_page(text: str, page: int, max_chars=1800):
     """Split on legal headings first, then by size; keeps page + section label."""
@@ -112,14 +126,79 @@ Briefly state the applicable principle and the most material issue or uncertaint
 current primary authority when relevant. Never invent statutes, cases, quotations, citations, or claim
 to have checked current law. If unsure of an authority, say so rather than cite it.
 
+Current facts can change, including office holders, court appointments, legislation, and case status.
+Do not state such a fact as current based only on model memory or undated/old document passages. If
+no source supplied in this request verifies it as of now, say you cannot verify the current status and
+point the user to an appropriate official source. Do not present a likely or remembered answer as fact.
+
 Mention that law changes and the answer is not a final legal opinion, using a brief note when relevant.
 Reply in the user's language (English or Nepali)."""
 
-async def stream_answer(question: str, hits: list[dict], history: list[dict]):
+async def _gemini_current_answer(question: str) -> tuple[list[str], list[dict]]:
+    """Search for current facts using only the latest question; never send chat history or uploads."""
+    _, key = provider_credentials()
+    system = SYSTEM + "\n\nThis request is specifically about a current fact. You MUST use Google Search. "         "Prefer official government or primary sources, state the date checked, and do not rely on remembered facts."
+    body = {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": question}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {"temperature": 0.1},
+    }
+    url = f"{settings.gemini_api_base_url.rstrip('/')}/models/{settings.chat_model}:streamGenerateContent"
+    answer_parts: list[str] = []
+    found: dict[str, str] = {}
+    async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=20)) as client:
+        async with client.stream(
+            "POST", url, params={"alt": "sse"}, headers={"x-goog-api-key": key}, json=body,
+        ) as response:
+            if response.is_error:
+                detail = (await response.aread()).decode("utf-8", errors="replace")[:1200]
+                raise RuntimeError(f"Live search failed ({response.status_code}): {detail}")
+            async for line in response.aiter_lines():
+                if not line.startswith("data:"):
+                    continue
+                raw = line[5:].strip()
+                if not raw or raw == "[DONE]":
+                    continue
+                try:
+                    event = json.loads(raw)
+                except ValueError:
+                    continue
+                for candidate in event.get("candidates", []):
+                    for part in candidate.get("content", {}).get("parts", []):
+                        if part.get("text"):
+                            answer_parts.append(part["text"])
+                    metadata = candidate.get("groundingMetadata") or {}
+                    for chunk in metadata.get("groundingChunks", []):
+                        web = chunk.get("web") or {}
+                        uri = web.get("uri")
+                        if uri and uri.startswith(("https://", "http://")):
+                            found[uri] = web.get("title") or uri
+    if not answer_parts:
+        raise RuntimeError("Live search returned no answer. Please retry shortly.")
+    if not found:
+        raise RuntimeError("Live search returned no verifiable source links, so no current answer was provided.")
+    sources = [
+        {"n": i, "title": title, "url": uri, "source_type": "web"}
+        for i, (uri, title) in enumerate(found.items(), 1)
+    ]
+    return answer_parts, sources
+
+
+async def stream_answer(question: str, hits: list[dict], history: list[dict], web_sources: list[dict] | None = None):
+    if should_search_current_question(question):
+        answer_parts, sources = await _gemini_current_answer(question)
+        if web_sources is not None:
+            web_sources.extend(sources)
+        for part in answer_parts:
+            yield part
+        return
+
     ctx = "\n\n".join(f"[{h['n']}] {h['title']} — {h.get('section') or ''} p.{h['page']}\n{h['text']}" for h in hits)
     evidence = f"Numbered document evidence:\n{ctx}" if hits else "No uploaded-document evidence was found for this question. Answer in general-knowledge mode."
     msgs = [{"role": "system", "content": SYSTEM}, *history[-8:],
             {"role": "user", "content": f"{evidence}\n\nQuestion: {question}"}]
-    s = await ai_client().chat.completions.create(model=settings.chat_model, messages=msgs, stream=True, temperature=0.1)
-    async for ev in s:
-        if ev.choices and ev.choices[0].delta.content: yield ev.choices[0].delta.content
+    stream = await ai_client().chat.completions.create(model=settings.chat_model, messages=msgs, stream=True, temperature=0.1)
+    async for event in stream:
+        if event.choices and event.choices[0].delta.content:
+            yield event.choices[0].delta.content

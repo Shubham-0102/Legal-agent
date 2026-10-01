@@ -145,16 +145,24 @@ async def chat(b: ChatIn, u: User = Depends(current_user)):
     hist = [{"role": m.role, "content": m.content} for m in past]
 
     async def gen():
-        yield f"event: status\ndata: Searching {'case documents' if b.case_id else 'your documents'}\n\n"
-        try: hits = await rag.retrieve(u.id, b.message, conv.case_id)
+        live_lookup = rag.should_search_current_question(b.message)
+        status = "Searching current web sources" if live_lookup else f"Searching {'case documents' if b.case_id else 'your documents'}"
+        yield f"event: status\ndata: {status}\n\n"
+        try:
+            # Current-fact requests bypass document retrieval so private passages cannot enter the search call.
+            hits = [] if live_lookup else await rag.retrieve(u.id, b.message, conv.case_id)
         except Exception as e:
             yield f"event: error\ndata: {json.dumps(str(e))}\n\n"; return
         srcs = [{k: h[k] for k in ("n", "title", "section", "page", "source_type", "score")} for h in hits]
-        yield f"event: sources\ndata: {json.dumps(srcs)}\n\nevent: status\ndata: Generating response\n\n"
+        web_sources = []
+        yield f"event: sources\ndata: {json.dumps(srcs)}\n\nevent: status\ndata: {'Verifying live sources' if live_lookup else 'Generating response'}\n\n"
         out = []
         try:
-            async for t in rag.stream_answer(b.message, hits, hist):
+            async for t in rag.stream_answer(b.message, hits, hist, web_sources=web_sources):
                 out.append(t); yield f"event: token\ndata: {json.dumps(t)}\n\n"
+            if web_sources:
+                srcs = web_sources
+                yield f"event: sources\ndata: {json.dumps(srcs)}\n\n"
         except Exception as e:
             log.exception("llm"); yield f"event: error\ndata: {json.dumps('LLM request failed: ' + str(e))}\n\n"
         async with Session() as s:

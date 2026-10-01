@@ -154,7 +154,7 @@ export default function App() {
         if (ev === "status") setStatus(d);
         else if (ev === "sources") patch(m => ({ ...m, sources: JSON.parse(d) as Source[] }));
         else if (ev === "token") patch(m => ({ ...m, content: m.content + JSON.parse(d) }));
-        else if (ev === "error") patch(m => ({ ...m, content: m.content + `\n\n**Error:** ${JSON.parse(d)}` }));
+        else if (ev === "error") patch(m => ({ ...m, content: m.content + `\nn**Error:** ${JSON.parse(d)}` }));
         else if (ev === "done") setCid(Number(d));
       }, controller.signal);
     } catch (e) {
@@ -325,8 +325,18 @@ export default function App() {
                     </div>
                     {!!m.sources?.length && <details className="sources-panel">
                       <summary>Sources <span>{m.sources.length}</span></summary>
-                      <div className="source-list">{m.sources.map(s =>
-                        <div key={s.n} className="source-row"><span className="source-number">[{s.n}]</span><div><strong>{s.title}</strong><span>{s.section ? `${s.section} · ` : ""}Page {s.page}</span></div><span className="source-kind">DOCUMENT</span></div>)}</div>
+                      <div className="source-list">
+                        {m.sources.map(s => (
+                          <div key={s.n} className="source-row">
+                            <span className="source-number">[{s.n}]</span>
+                            <div>
+                              {s.url ? <a href={s.url} target="_blank" rel="noreferrer"><strong>{s.title}</strong></a> : <strong>{s.title}</strong>}
+                              <span>{s.url ? "Live web source" : `${s.section ? `${s.section} · ` : ""}Page ${s.page ?? "—"}`}</span>
+                            </div>
+                            <span className="source-kind">{s.url ? "WEB" : "DOCUMENT"}</span>
+                          </div>
+                        ))}
+                      </div>
                     </details>}
                   </div>
                 </article>
