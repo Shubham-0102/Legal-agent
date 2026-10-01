@@ -1,4 +1,4 @@
-export const API = `http://${location.hostname}:8000/api`;
+export const API = "https://legal-agent-bdlk.onrender.com";
 let token = localStorage.getItem("token") || "";
 export const setToken = (t: string) => { token = t; t ? localStorage.setItem("token", t) : localStorage.removeItem("token"); };
 export const hasToken = () => !!token;
