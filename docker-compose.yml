@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    environment: {POSTGRES_USER: legal, POSTGRES_PASSWORD: legal, POSTGRES_DB: legal}
+    volumes: [pgdata:/var/lib/postgresql/data]
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes: [qdata:/qdrant/storage]
+  backend:
+    build: ./backend
+    env_file: .env
+    depends_on: [db, qdrant]
+    ports: ["8000:8000"]
+    volumes: [uploads:/data/uploads]
+  frontend:
+    image: node:20
+    working_dir: /app
+    volumes: [./frontend:/app]
+    command: sh -c "npm install && npm run dev -- --host"
+    ports: ["5173:5173"]
+volumes: {pgdata: {}, qdata: {}, uploads: {}}

@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+asyncpg
+pydantic-settings
+pyjwt
+bcrypt
+python-multipart
+qdrant-client
+openai
+httpx
+pypdf
