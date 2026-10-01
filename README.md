@@ -1,20 +1,264 @@
 # Legal Agent
 
-## Run
-Copy `.env.example` to `.env`, set a long random `JWT_SECRET`, and add a Gemini API key to `GEMINI_API_KEY`. Create a key in [Google AI Studio](https://aistudio.google.com/apikey). Do not commit `.env` or share the key.
+Legal Agent is a full-stack AI legal research assistant that helps users research legal questions, upload and search their own documents, organize research into cases, save conversations, and view legal news updates.
 
-```sh
+It uses Retrieval-Augmented Generation (RAG) to retrieve relevant content from uploaded documents and provide context-aware AI responses.
+
+> Legal Agent is an AI research assistant and is not a substitute for professional legal advice or verification of current primary legal sources.
+
+## Live Demo
+
+https://legal-agent-3unltysa4-shubham-yadavs-projects-559bea27.vercel.app/
+
+## Features
+
+* User registration and login
+* JWT-based authentication
+* AI-powered legal question answering
+* RAG-based document search
+* PDF and TXT document uploads
+* Semantic search using Qdrant
+* Case management
+* Conversation history
+* Streaming AI responses
+* Document source references
+* Legal news feed
+* User profile management
+
+## Tech Stack
+
+| Component         | Technology              |
+| ----------------- | ----------------------- |
+| Frontend          | React, TypeScript, Vite |
+| Backend           | Python, FastAPI         |
+| Database          | PostgreSQL              |
+| Vector Database   | Qdrant                  |
+| AI                | Gemini / OpenAI         |
+| Authentication    | JWT                     |
+| Password Hashing  | bcrypt                  |
+| Containerization  | Docker                  |
+| Production Server | Caddy                   |
+
+## How It Works
+
+The main application flow is:
+
+```text
+React Frontend
+      |
+      v
+FastAPI Backend
+      |
+      +-------------------+
+      |                   |
+      v                   v
+ PostgreSQL             Qdrant
+      |                   |
+      |             Document Search
+      |                   |
+      +---------+---------+
+                |
+                v
+           AI Model
+                |
+                v
+        Streaming Response
+```
+
+## RAG Pipeline
+
+When a user uploads a document:
+
+```text
+PDF / TXT
+   |
+   v
+Text Extraction
+   |
+   v
+Text Chunking
+   |
+   v
+Embeddings
+   |
+   v
+Qdrant
+```
+
+When a user asks a question:
+
+```text
+User Question
+      |
+      v
+Qdrant Search
+      |
+      v
+Relevant Document Chunks
+      |
+      v
+AI Model
+      |
+      v
+Generated Answer
+```
+
+The retrieved documents are filtered using the user's information and, when applicable, the selected case.
+
+## Document Storage
+
+The application uses three types of storage:
+
+### PostgreSQL
+
+Stores:
+
+* Users
+* Cases
+* Document metadata
+* Conversations
+* Messages
+* Profiles
+
+### Qdrant
+
+Stores:
+
+* Document embeddings
+* Document chunks
+* Document metadata
+* Search information
+
+### File Storage
+
+Stores the original uploaded PDF and TXT files.
+
+A complete backup therefore requires PostgreSQL, Qdrant, and the uploaded files.
+
+## Legal News
+
+The application includes a separate legal-news section.
+
+It collects information from selected RSS feeds and Nepalese official websites.
+
+The news feed is separate from the AI chat. News articles are not automatically used as context when answering chat questions.
+
+The news system depends on the availability and structure of external websites, so it cannot guarantee that every legal update is captured.
+
+## Project Structure
+
+```text
+legal-agent/
+|
+├── backend/
+│   └── app/
+│       ├── main.py
+│       ├── core.py
+│       ├── db.py
+│       ├── rag.py
+│       ├── news.py
+│       └── ...
+|
+├── frontend/
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx
+│       ├── Auth.tsx
+│       ├── Profile.tsx
+│       ├── api.ts
+│       └── ...
+|
+├── data/
+├── docker-compose.yml
+├── docker-compose.production.yml
+├── Caddyfile
+├── .env.example
+├── .env.production.example
+└── README.md
+```
+
+## Running Locally
+
+Clone the repository:
+
+```bash
+git clone <your-repository-url>
+cd legal-agent
+```
+
+Create the environment file:
+
+```bash
+cp .env.example .env
+```
+
+Configure the required environment variables.
+
+Start the development environment:
+
+```bash
 docker compose up --build
 ```
 
-The frontend is at http://localhost:5173 and the backend API docs are at http://localhost:8000/docs. The API root (`http://localhost:8000/`) intentionally has no homepage and returns 404.
+The development stack includes the frontend, FastAPI backend, PostgreSQL, and Qdrant.
 
-The default Gemini configuration uses `gemini-3.5-flash` for chat and `gemini-embedding-001` for retrieval embeddings. Gemini free-tier availability and request limits depend on account, region, and current Google AI Studio terms. To use OpenAI instead, set `AI_PROVIDER=openai`, `OPENAI_API_KEY`, `CHAT_MODEL=gpt-4o`, and `EMBED_MODEL=text-embedding-3-small`.
+## Deployment
 
-For frontend-only development on the host, use `npm --prefix frontend run dev -- --host`; there is no root-level `package.json`.
+The project includes production configuration using Docker Compose and Caddy.
 
-## Research flow
-Register and log in, then ask general legal research questions without uploading a document. Include the jurisdiction and relevant date; the assistant gives preliminary research guidance and flags that current primary authority must be checked. Upload a PDF or TXT when you want an answer grounded in a specific record. Every Qdrant query is filtered by `user_id` and, when selected, `case_id`.
+Production files include:
 
-## Frontend
-`docker compose up --build` also starts the React app (first start runs `npm install`).
+```text
+docker-compose.production.yml
+Caddyfile
+frontend/Dockerfile
+.env.production.example
+```
+
+The production architecture is designed to serve the frontend and backend through the same domain, with `/api` routed to the FastAPI backend.
+
+## Current Limitations
+
+* Only PDF and TXT files are supported.
+* Scanned PDFs are not supported because OCR is not implemented.
+* The default document upload limit is 25 MB.
+* Document retrieval may miss relevant passages.
+* AI-generated answers may contain errors.
+* The news feed cannot guarantee complete coverage of all legal updates.
+* News content is not automatically used by the chat system.
+* There is currently no email verification.
+* There is currently no password reset system.
+* Two-factor authentication is not implemented.
+* Database migrations are not currently implemented.
+* Important legal information should be verified against authoritative sources.
+
+## Future Improvements
+
+Planned improvements include:
+
+* OCR for scanned documents
+* Hybrid keyword and vector search
+* Reranking for better retrieval
+* Better document citations
+* Integration with more official legal sources
+* Legal document comparison
+* Law and amendment tracking
+* Case-specific notifications
+* Email notifications
+* Two-factor authentication
+* Role-based access control
+* Automated backups
+* CI/CD
+* Improved testing and monitoring
+
+## Disclaimer
+
+Legal Agent is intended for research and informational purposes.
+
+It does not provide legal representation or constitute legal advice. Users should verify important information against current and authoritative legal sources.
+
+## Author
+
+Shubham Yadav
+
+Computer Science | AI & Data Engineering
